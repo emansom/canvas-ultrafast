@@ -37,6 +37,10 @@ interface _DrawState {
   _textBaseline: CanvasTextBaseline;
   _lineCap: CanvasLineCap;
   _lineJoin: CanvasLineJoin;
+  _imageSmoothingEnabled: boolean;
+  _letterSpacing: string;
+  _clipActive: boolean;
+  _clipRect: [number, number, number, number] | null;
 }
 
 interface _ProgramInfo {
@@ -66,6 +70,12 @@ export class Canvas2DShim {
   private _textBaseline: CanvasTextBaseline = 'alphabetic';
   private _lineCap: CanvasLineCap = 'butt';
   private _lineJoin: CanvasLineJoin = 'miter';
+  private _imageSmoothingEnabled = true;
+  private _letterSpacing = '';
+  private _clipActive = false;
+  private _clipRect: [number, number, number, number] | null = null;
+  private _pendingClipRect: [number, number, number, number] | null = null;
+  private _imageTexCache = new WeakMap<object, { _tex: WebGLTexture; _isImage: boolean }>();
   private _stateStack: _DrawState[] = [];
 
   // Path state
@@ -207,6 +217,12 @@ export class Canvas2DShim {
       case 'lineJoin':
         this._lineJoin = value as CanvasLineJoin;
         break;
+      case 'imageSmoothingEnabled':
+        this._imageSmoothingEnabled = value as boolean;
+        break;
+      case 'letterSpacing':
+        this._letterSpacing = value as string;
+        break;
       default:
         // Unsupported properties: silently ignore
         break;
@@ -238,9 +254,15 @@ export class Canvas2DShim {
         this._strokeText(args[0] as string, args[1] as number, args[2] as number);
         break;
 
+      // Images
+      case 'drawImage':
+        this._drawImage(args);
+        break;
+
       // Path
       case 'beginPath':
         this._pathSegments = [];
+        this._pendingClipRect = null;
         break;
       case 'closePath':
         if (this._currentX !== this._subpathStartX || this._currentY !== this._subpathStartY) {
@@ -264,6 +286,23 @@ export class Canvas2DShim {
         this._currentY = y;
         break;
       }
+      case 'rect': {
+        const rx = args[0] as number, ry = args[1] as number;
+        const rw = args[2] as number, rh = args[3] as number;
+        // Store as pending clip rect (used if clip() follows)
+        this._pendingClipRect = [rx, ry, rw, rh];
+        // Also add 4 line segments to path for potential stroke()
+        this._pathSegments.push(
+          rx, ry, rx + rw, ry,           // top
+          rx + rw, ry, rx + rw, ry + rh, // right
+          rx + rw, ry + rh, rx, ry + rh, // bottom
+          rx, ry + rh, rx, ry,           // left
+        );
+        break;
+      }
+      case 'clip':
+        this._applyClip();
+        break;
       case 'stroke':
         this._strokePath();
         break;
@@ -440,6 +479,136 @@ export class Canvas2DShim {
     gl.drawArrays(gl.TRIANGLES, 0, segCount * 6);
   }
 
+  private _drawImage(args: unknown[]): void {
+    const gl = this._gl;
+    const image = args[0] as CanvasImageSource;
+
+    let sx: number, sy: number, sw: number, sh: number;
+    let dx: number, dy: number, dw: number, dh: number;
+
+    // Get image dimensions
+    const imgW = _getImageWidth(image);
+    const imgH = _getImageHeight(image);
+
+    if (args.length === 3) {
+      // drawImage(image, dx, dy)
+      sx = 0; sy = 0; sw = imgW; sh = imgH;
+      dx = args[1] as number; dy = args[2] as number;
+      dw = imgW; dh = imgH;
+    } else if (args.length === 5) {
+      // drawImage(image, dx, dy, dw, dh)
+      sx = 0; sy = 0; sw = imgW; sh = imgH;
+      dx = args[1] as number; dy = args[2] as number;
+      dw = args[3] as number; dh = args[4] as number;
+    } else {
+      // drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh)
+      sx = args[1] as number; sy = args[2] as number;
+      sw = args[3] as number; sh = args[4] as number;
+      dx = args[5] as number; dy = args[6] as number;
+      dw = args[7] as number; dh = args[8] as number;
+    }
+
+    // Get or create texture for this image source
+    const tex = this._getOrUploadTexture(image, imgW, imgH);
+
+    // Set filtering based on imageSmoothingEnabled
+    const filter = this._imageSmoothingEnabled ? gl.LINEAR : gl.NEAREST;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+
+    // Compute UV coordinates for source sub-rect
+    const uMin = sx / imgW;
+    const vMin = sy / imgH;
+    const uMax = (sx + sw) / imgW;
+    const vMax = (sy + sh) / imgH;
+
+    // Draw textured quad with interleaved position + texcoord
+    const prog = this._textured;
+    const verts = new Float32Array([
+      dx,      dy,       uMin, vMin,
+      dx + dw, dy,       uMax, vMin,
+      dx,      dy + dh,  uMin, vMax,
+      dx,      dy + dh,  uMin, vMax,
+      dx + dw, dy,       uMax, vMin,
+      dx + dw, dy + dh,  uMax, vMax,
+    ]);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this._texturedVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+
+    gl.useProgram(prog._program);
+    gl.uniformMatrix3fv(prog._matrixLoc, false, this._matrix.getMatrix());
+    // White color tint with globalAlpha — no color modification, just alpha
+    gl.uniform4f(prog._colorLoc!, 1, 1, 1, this._globalAlpha);
+
+    // Standard alpha blending (not premultiplied for image textures)
+    const stride = 16; // 4 floats × 4 bytes
+    gl.enableVertexAttribArray(prog._positionLoc);
+    gl.vertexAttribPointer(prog._positionLoc, 2, gl.FLOAT, false, stride, 0);
+    gl.enableVertexAttribArray(prog._texCoordLoc);
+    gl.vertexAttribPointer(prog._texCoordLoc, 2, gl.FLOAT, false, stride, 8);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform1i(prog._textureLoc, 0);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    // Disable texcoord attrib to avoid interfering with flat shader
+    gl.disableVertexAttribArray(prog._texCoordLoc);
+  }
+
+  private _getOrUploadTexture(image: CanvasImageSource, imgW: number, imgH: number): WebGLTexture {
+    const gl = this._gl;
+    const key = image as unknown as object;
+    const cached = this._imageTexCache.get(key);
+
+    // HTMLImageElement/SVGImageElement: upload once, cache permanently
+    // HTMLCanvasElement/OffscreenCanvas: always re-upload (content may change)
+    const isImage = (image instanceof HTMLImageElement) || (image instanceof SVGImageElement);
+
+    if (cached) {
+      if (cached._isImage) {
+        // Static image — reuse cached texture
+        return cached._tex;
+      }
+      // Canvas source — re-upload to existing texture
+      gl.bindTexture(gl.TEXTURE_2D, cached._tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image as TexImageSource);
+      return cached._tex;
+    }
+
+    // Create new texture
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    // Detect if we need to handle alpha properly
+    // For canvas sources, use standard upload; for images, avoid premultiply
+    if (imgW > 0 && imgH > 0) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image as TexImageSource);
+    }
+
+    this._imageTexCache.set(key, { _tex: tex, _isImage: isImage });
+    return tex;
+  }
+
+  private _applyClip(): void {
+    const gl = this._gl;
+    if (this._pendingClipRect) {
+      const [x, y, w, h] = this._pendingClipRect;
+      gl.enable(gl.SCISSOR_TEST);
+      // Convert canvas coords (top-left origin) to GL coords (bottom-left origin)
+      gl.scissor(x, this._height - y - h, w, h);
+      this._clipActive = true;
+      this._clipRect = [x, y, w, h];
+    }
+  }
+
   private _fillText(text: string, x: number, y: number): void {
     this._renderText(text, x, y, 'fill');
   }
@@ -456,6 +625,9 @@ export class Canvas2DShim {
     tCtx.font = this._font;
     tCtx.textAlign = 'left'; // Always render left-aligned, position via WebGL
     tCtx.textBaseline = 'top'; // Always render from top, adjust Y via offset
+    if (this._letterSpacing) {
+      tCtx.letterSpacing = this._letterSpacing;
+    }
 
     // Measure text
     const metrics = tCtx.measureText(text);
@@ -590,11 +762,16 @@ export class Canvas2DShim {
       _textBaseline: this._textBaseline,
       _lineCap: this._lineCap,
       _lineJoin: this._lineJoin,
+      _imageSmoothingEnabled: this._imageSmoothingEnabled,
+      _letterSpacing: this._letterSpacing,
+      _clipActive: this._clipActive,
+      _clipRect: this._clipRect ? [...this._clipRect] as [number, number, number, number] : null,
     });
   }
 
   private _restore(): void {
     this._matrix.restore();
+    const gl = this._gl;
     const state = this._stateStack.pop();
     if (state) {
       this._fillColor = state._fillColor;
@@ -606,6 +783,19 @@ export class Canvas2DShim {
       this._textBaseline = state._textBaseline;
       this._lineCap = state._lineCap;
       this._lineJoin = state._lineJoin;
+      this._imageSmoothingEnabled = state._imageSmoothingEnabled;
+      this._letterSpacing = state._letterSpacing;
+      this._clipActive = state._clipActive;
+      this._clipRect = state._clipRect;
+
+      // Restore scissor state
+      if (this._clipActive && this._clipRect) {
+        const [x, y, w, h] = this._clipRect;
+        gl.enable(gl.SCISSOR_TEST);
+        gl.scissor(x, this._height - y - h, w, h);
+      } else {
+        gl.disable(gl.SCISSOR_TEST);
+      }
     }
   }
 
@@ -669,4 +859,16 @@ export class Canvas2DShim {
 function _parseFontSize(font: string): number {
   const match = font.match(/(\d+(?:\.\d+)?)\s*px/);
   return match ? parseFloat(match[1]) : 10;
+}
+
+/** Get width of a CanvasImageSource (handles HTMLImageElement, HTMLCanvasElement, OffscreenCanvas, etc.) */
+function _getImageWidth(img: CanvasImageSource): number {
+  if ('naturalWidth' in img) return (img as HTMLImageElement).naturalWidth;
+  return (img as HTMLCanvasElement | OffscreenCanvas).width;
+}
+
+/** Get height of a CanvasImageSource. */
+function _getImageHeight(img: CanvasImageSource): number {
+  if ('naturalHeight' in img) return (img as HTMLImageElement).naturalHeight;
+  return (img as HTMLCanvasElement | OffscreenCanvas).height;
 }

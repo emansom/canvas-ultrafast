@@ -22,6 +22,8 @@ type CanvasPropertyMap = {
   shadowColor: string;
   shadowOffsetX: number;
   shadowOffsetY: number;
+  imageSmoothingEnabled: boolean;
+  letterSpacing: string;
 };
 
 export type CanvasCommand =
@@ -80,6 +82,17 @@ export class CanvasAPI {
     this._m('strokeText', ...(maxWidth !== undefined ? [text, x, y, maxWidth] : [text, x, y]));
   }
 
+  /** Synchronous text measurement — cannot go through the async command pipeline. */
+  private _measureCtx: OffscreenCanvasRenderingContext2D | null = null;
+
+  measureText(text: string): TextMetrics {
+    if (!this._measureCtx) {
+      this._measureCtx = new OffscreenCanvas(1, 1).getContext('2d')!;
+    }
+    this._measureCtx.font = this.font;
+    return this._measureCtx.measureText(text);
+  }
+
   // Line drawing
   beginPath(): void { this._m('beginPath'); }
   closePath(): void { this._m('closePath'); }
@@ -104,6 +117,14 @@ export class CanvasAPI {
 
   rect(x: number, y: number, width: number, height: number): void { this._m('rect', x, y, width, height); }
 
+  // Images
+  drawImage(image: CanvasImageSource, dx: number, dy: number): void;
+  drawImage(image: CanvasImageSource, dx: number, dy: number, dw: number, dh: number): void;
+  drawImage(image: CanvasImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
+  drawImage(...args: [CanvasImageSource, ...number[]]): void {
+    this._m('drawImage', ...args);
+  }
+
   // Fill and stroke
   fill(): void { this._m('fill'); }
   stroke(): void { this._m('stroke'); }
@@ -126,6 +147,8 @@ export class CanvasAPI {
   set shadowColor(value: string) { this._p('shadowColor', value); }
   set shadowOffsetX(value: number) { this._p('shadowOffsetX', value); }
   set shadowOffsetY(value: number) { this._p('shadowOffsetY', value); }
+  set imageSmoothingEnabled(value: boolean) { this._p('imageSmoothingEnabled', value); }
+  set letterSpacing(value: string) { this._p('letterSpacing', value); }
 
   // Property getters (return local cached values)
   get fillStyle() { return this._cp['fillStyle'] ?? '#000'; }
@@ -144,4 +167,6 @@ export class CanvasAPI {
   get shadowColor() { return this._cp['shadowColor'] ?? 'rgba(0, 0, 0, 0)'; }
   get shadowOffsetX() { return this._cp['shadowOffsetX'] ?? 0; }
   get shadowOffsetY() { return this._cp['shadowOffsetY'] ?? 0; }
+  get imageSmoothingEnabled() { return this._cp['imageSmoothingEnabled'] ?? true; }
+  get letterSpacing() { return this._cp['letterSpacing'] ?? ''; }
 }
