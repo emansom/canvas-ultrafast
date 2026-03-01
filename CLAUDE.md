@@ -59,11 +59,11 @@ The WebGL context uses `alpha: false` and `desynchronized: true` by design:
 - **`alpha: false`** tells the GPU the canvas has no alpha channel, skipping per-pixel alpha blending in the browser compositor — significant savings on mobile GPUs where compositor bandwidth is the bottleneck. On low-end mobile (Adreno 3xx/4xx, Mali-T6xx), alpha compositing can cost 2-4ms/frame at 1080p.
 - **`desynchronized: true`** enables direct-to-display rendering, bypassing the OS compositor entirely — eliminates one full frame of latency and reduces CPU overhead from compositor wake-ups. Saves another 1-2ms on mobile. Together they can be the difference between 60fps and dropped frames.
 - **Combined effect:** the canvas is painted directly to the display buffer without compositing, matching how a physical CRT display works (no layering, no transparency).
-- **Tradeoff:** the canvas is always opaque — `clearRect` produces the configured background color (default: black), not transparent. Callers use `setBackgroundColor(r, g, b)` to set the clear color. maalata auto-detects this from the DOM.
+- **Tradeoff:** the canvas is always opaque — `clearRect` produces the configured background color, not transparent. The constructor auto-detects the background color by walking the canvas's DOM ancestors for a non-transparent `backgroundColor` (fallback: white). Callers can override with `setBackgroundColor(r, g, b)`.
 
 ### Cross-file methods (no `_` prefix)
 
-- `UltrafastRenderer.submitBatch/startDisplay/stopDisplay/getGL/getReadyTexture/getCanvas/getCanvasAPI/getCanvasSize/setBackgroundColor/screenshot/destroy`
+- `UltrafastRenderer.submitBatch/startDisplay/stopDisplay/getGL/getReadyTexture/getCanvas/getCanvasAPI/getCanvasSize/setBackgroundColor/getBackgroundColor/screenshot/destroy`
 - `CanvasAPI.takeCommands()`
 - `Canvas2DShim.executeBatch/resize/setBackgroundColor/destroy`
 - `MatrixStack.save/restore/translate/rotate/scale/getMatrix/resize`

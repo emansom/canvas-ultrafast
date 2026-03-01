@@ -27,6 +27,7 @@
 
 import { CanvasAPI, type CanvasCommand } from './canvas-api';
 import { Canvas2DShim } from './canvas2d-shim';
+import { parseColor } from './color-parser';
 import {
   PASSTHROUGH_VERTEX_SRC,
   PASSTHROUGH_FRAGMENT_SRC,
@@ -95,8 +96,11 @@ export class UltrafastRenderer {
     // Initialize fullscreen quad VBO for display pass
     this._initQuadVBO();
 
-    // Clear all FBOs to black initially
+    // Clear all FBOs initially
     this._clearAllFBOs();
+
+    // Auto-detect background color from DOM ancestors
+    this._resolveBackgroundColor();
 
     // Auto-start display loop
     this.startDisplay();
@@ -174,6 +178,11 @@ export class UltrafastRenderer {
     this._bgColor[1] = g;
     this._bgColor[2] = b;
     this._shim.setBackgroundColor(r, g, b);
+  }
+
+  /** Returns the current background color as [r, g, b] floats in [0, 1]. */
+  getBackgroundColor(): [number, number, number] {
+    return [this._bgColor[0], this._bgColor[1], this._bgColor[2]];
   }
 
   /** Clean up all WebGL resources. */
@@ -289,6 +298,26 @@ export class UltrafastRenderer {
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return { _fbo: fbo, _texture: texture };
+  }
+
+  private _resolveBackgroundColor(): void {
+    let el: HTMLElement | null = this._canvas.parentElement;
+    while (el) {
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
+        const c = parseColor(bg);
+        if (c[3] > 0) {
+          this.setBackgroundColor(c[0], c[1], c[2]);
+          this._clearAllFBOs();
+          return;
+        }
+      }
+      el = el.parentElement;
+    }
+
+    // Fallback: white (browser default page background)
+    this.setBackgroundColor(1, 1, 1);
+    this._clearAllFBOs();
   }
 
   private _clearAllFBOs(): void {

@@ -1,6 +1,6 @@
 {
   "name": "canvas-ultrafast",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "WebGL-accelerated Canvas 2D rendering engine with triple-buffered FBOs",
   "type": "module",
   "main": "dist/canvas-ultrafast.umd.js",
