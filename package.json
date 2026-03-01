@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "WebGL-accelerated Canvas 2D rendering engine with triple-buffered FBOs",
   "type": "module",
-  "main": "dist/canvas-ultrafast.0a27ed3f.umd.js",
-  "module": "dist/canvas-ultrafast.0a27ed3f.es.js",
+  "main": "dist/canvas-ultrafast.umd.js",
+  "module": "dist/canvas-ultrafast.es.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
