@@ -97,6 +97,9 @@ export class Canvas2DShim {
   private _textCanvas: OffscreenCanvas;
   private _textCtx: OffscreenCanvasRenderingContext2D;
 
+  // Background color for opaque canvas clear
+  private _bgColor = new Float32Array([0, 0, 0]);
+
   // Temp arrays to avoid allocation in hot path
   private _tmpColor = new Float32Array(4);
 
@@ -158,6 +161,16 @@ export class Canvas2DShim {
         this._callMethod(cmd.name, cmd.args);
       }
     }
+  }
+
+  /**
+   * Set the opaque clear color for clearRect.
+   * No _ prefix: called cross-file from renderer.
+   */
+  setBackgroundColor(r: number, g: number, b: number): void {
+    this._bgColor[0] = r;
+    this._bgColor[1] = g;
+    this._bgColor[2] = b;
   }
 
   /**
@@ -356,10 +369,11 @@ export class Canvas2DShim {
 
   private _clearRect(x: number, y: number, w: number, h: number): void {
     const gl = this._gl;
+    const bg = this._bgColor;
     // WebGL scissor uses bottom-left origin, canvas uses top-left
     gl.enable(gl.SCISSOR_TEST);
     gl.scissor(x, this._height - y - h, w, h);
-    gl.clearColor(0, 0, 0, 0);
+    gl.clearColor(bg[0], bg[1], bg[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.disable(gl.SCISSOR_TEST);
   }

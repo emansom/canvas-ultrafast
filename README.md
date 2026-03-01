@@ -99,11 +99,27 @@ api.fillText('hello', 20, 80);
 | `getCanvasAPI()` | Return the `CanvasAPI` instance |
 | `submitBatch(commands)` | Execute commands into the write FBO, swap write ↔ ready |
 | `startDisplay()` / `stopDisplay()` | Control the RAF display loop |
+| `setBackgroundColor(r, g, b)` | Set the opaque clear color (values in [0, 1]) |
 | `getReadyTexture()` | Return the ready FBO's texture for external rendering |
 | `getGL()` | Access the underlying `WebGL2RenderingContext` |
 | `getCanvas()` / `getCanvasSize()` | Canvas element and dimensions |
 | `screenshot()` | Capture the current display frame as `ImageBitmap` |
 | `destroy()` | Release all WebGL resources |
+
+## Opaque canvas
+
+The WebGL context is created with `alpha: false` and `desynchronized: true`. This means the canvas is always opaque — there is no alpha channel, and the browser compositor is bypassed entirely.
+
+**Why:** `alpha: false` tells the GPU to skip per-pixel alpha blending in the compositor, saving significant bandwidth on mobile GPUs (2-4ms/frame on Adreno 3xx/4xx, Mali-T6xx at 1080p). `desynchronized: true` enables direct-to-display rendering, eliminating an additional frame of latency and reducing CPU overhead from compositor wake-ups. Together, these can be the difference between hitting 60fps and dropping frames on low-end hardware.
+
+**Tradeoff:** `clearRect()` produces the configured background color (default: black) rather than transparency. Use `setBackgroundColor(r, g, b)` to control the clear color:
+
+```ts
+const renderer = new UltrafastRenderer(canvas);
+renderer.setBackgroundColor(0.16, 0.22, 0.35); // dark blue, values in [0, 1]
+```
+
+[maalata](https://github.com/emansom/maalata) auto-detects the background color from the canvas element's DOM ancestors, so no manual configuration is needed in most cases.
 
 ## Extension points
 

@@ -51,6 +51,9 @@ export class UltrafastRenderer {
   private _displayIdx = 2;
   private _hasContent = false;
 
+  // Background color for opaque canvas clear (default: black, backwards compatible)
+  private _bgColor = new Float32Array([0, 0, 0]);
+
   // Display program
   private _passthroughProgram: WebGLProgram;
 
@@ -159,6 +162,18 @@ export class UltrafastRenderer {
   screenshot(): Promise<ImageBitmap> {
     this._renderDisplay();
     return createImageBitmap(this._canvas);
+  }
+
+  /**
+   * Set the opaque clear color used by clearRect and FBO initialization.
+   * With alpha: false, cleared areas are opaque — this controls what color
+   * they appear as instead of black. Values are in [0, 1] range.
+   */
+  setBackgroundColor(r: number, g: number, b: number): void {
+    this._bgColor[0] = r;
+    this._bgColor[1] = g;
+    this._bgColor[2] = b;
+    this._shim.setBackgroundColor(r, g, b);
   }
 
   /** Clean up all WebGL resources. */
@@ -278,13 +293,14 @@ export class UltrafastRenderer {
 
   private _clearAllFBOs(): void {
     const gl = this._gl;
+    const bg = this._bgColor;
     for (const fbo of this._fbos) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo._fbo);
-      gl.clearColor(0, 0, 0, 1);
+      gl.clearColor(bg[0], bg[1], bg[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(bg[0], bg[1], bg[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
   }
 
