@@ -1,0 +1,23 @@
+{
+  "name": "demo-canvas",
+  "version": "1.0.0",
+  "description": "Canvas Ultrafast demo — raw WebGL Canvas 2D renderer at 60fps",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit && npm run lint",
+    "build": "npm run type-check && NODE_ENV=production vite build --mode production",
+    "build:dev": "npm run type-check && NODE_ENV=development vite build --mode development",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "canvas-ultrafast": "file:.."
+  },
+  "devDependencies": {
+    "@minify-html/node": "^0.18.1",
+    "eslint": "^10.0.1",
+    "typescript": "~5.8.2",
+    "vite": "^7.3.1"
+  }
+}
