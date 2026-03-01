@@ -645,7 +645,8 @@ export class Canvas2DShim {
 
     // Measure text
     const metrics = tCtx.measureText(text);
-    const textWidth = Math.ceil(metrics.width) + 4; // +4 for antialiasing padding
+    const measuredWidth = Math.ceil(metrics.width);
+    const textWidth = measuredWidth + 4; // +4 for antialiasing padding
     const fontSize = _parseFontSize(this._font);
     const textHeight = Math.ceil(fontSize * 1.5) + 4; // approximate height with descenders
 
@@ -687,21 +688,21 @@ export class Canvas2DShim {
     let drawX = x - 2; // compensate for padding
     let drawY = y - 2;
 
-    // Adjust for textAlign
+    // Adjust for textAlign (use unpadded measuredWidth for glyph-accurate centering)
     switch (this._textAlign) {
-      case 'center': drawX -= textWidth / 2; break;
+      case 'center': drawX -= measuredWidth / 2; break;
       case 'right':
-      case 'end':    drawX -= textWidth; break;
+      case 'end':    drawX -= measuredWidth; break;
     }
 
-    // Adjust for textBaseline
+    // Adjust for textBaseline (use fontSize for em-square-accurate positioning)
     switch (this._textBaseline) {
       case 'top':         /* drawY stays */ break;
-      case 'middle':      drawY -= textHeight / 2; break;
+      case 'middle':      drawY -= fontSize / 2; break;
       case 'alphabetic':
       case 'ideographic': drawY -= fontSize; break;
       case 'bottom':
-      case 'hanging':     drawY -= textHeight; break;
+      case 'hanging':     drawY -= fontSize; break;
     }
 
     // Draw textured quad
