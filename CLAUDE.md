@@ -42,7 +42,7 @@ Standalone WebGL-accelerated Canvas 2D rendering engine. Zero runtime dependenci
 - **`renderer.ts`**: `UltrafastRenderer` class. Creates a WebGL2 context on the user's canvas, manages triple-buffered FBOs, runs a passthrough RAF display loop with auto-flush.
 - **`canvas-api.ts`**: `CanvasAPI` records Canvas 2D context calls as `CanvasCommand` objects without executing them.
 - **`canvas2d-shim.ts`**: Translates `CanvasCommand[]` into WebGL draw calls (fillRect, strokeRect, text, line quads, transforms).
-- **`shaders.ts`**: GLSL sources for flat-color, textured, and passthrough display shaders.
+- **`shaders.ts`**: GLSL ES 3.00 sources for flat-color, textured, and passthrough display shaders.
 - **`color-parser.ts`**: CSS color string → `Float32Array [r,g,b,a]` with caching.
 - **`matrix-stack.ts`**: 3×3 affine transform stack mapping canvas coordinates to clip space.
 
