@@ -50,6 +50,7 @@ Standalone WebGL-accelerated Canvas 2D rendering engine. Zero runtime dependenci
 
 - **Triple-buffered FBOs**: Write → Ready → Display rotation. `submitBatch()` swaps write↔ready. RAF reads from ready. Lock-free via JS single-threading.
 - **Auto-flush**: The RAF display loop drains `CanvasAPI.takeCommands()` each frame, so canvas calls are naturally batched and displayed at vsync rate.
+- **NEAREST filtering**: All textures (FBOs, text, images) use `gl.NEAREST` filtering. `imageSmoothingEnabled` defaults to `false`. Pixel-perfect sampling at every stage — no bilinear interpolation.
 - **esbuild `mangleProps: /^_/`**: All `_`-prefixed properties are renamed in production. Cross-file methods must NOT use `_` prefix.
 
 ### Design: opaque canvas

@@ -70,7 +70,7 @@ export class Canvas2DShim {
   private _textBaseline: CanvasTextBaseline = 'alphabetic';
   private _lineCap: CanvasLineCap = 'butt';
   private _lineJoin: CanvasLineJoin = 'miter';
-  private _imageSmoothingEnabled = true;
+  private _imageSmoothingEnabled = false;
   private _letterSpacing = '';
   private _clipActive = false;
   private _clipRect: [number, number, number, number] | null = null;
@@ -133,10 +133,11 @@ export class Canvas2DShim {
     this._texturedVBO = gl.createBuffer()!;
 
     // Text rendering texture
+    // NEAREST filtering — pixel art canvas, no bilinear smoothing
     this._textTexture = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, this._textTexture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
@@ -598,8 +599,8 @@ export class Canvas2DShim {
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
     // Detect if we need to handle alpha properly
     // For canvas sources, use standard upload; for images, avoid premultiply

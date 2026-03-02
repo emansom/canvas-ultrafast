@@ -120,6 +120,12 @@ const renderer = new UltrafastRenderer(canvas);
 renderer.setBackgroundColor(0.16, 0.22, 0.35); // dark blue, values in [0, 1]
 ```
 
+## Pixel-perfect rendering
+
+canvas-ultrafast is designed for pixel art canvases. All WebGL textures — FBOs, text, and images — use `gl.NEAREST` (nearest-neighbor) filtering. The `imageSmoothingEnabled` property defaults to `false` (unlike the Canvas 2D spec default of `true`).
+
+This ensures pixel-exact sampling with no bilinear interpolation at any stage. Consumers that need smooth scaling for specific `drawImage` calls can set `imageSmoothingEnabled = true` on the `CanvasAPI` before drawing.
+
 ## Extension points
 
 canvas-ultrafast is designed to be taken over by a downstream consumer. The pattern:

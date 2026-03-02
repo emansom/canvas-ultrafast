@@ -167,6 +167,6 @@ export class CanvasAPI {
   get shadowColor() { return this._cp['shadowColor'] ?? 'rgba(0, 0, 0, 0)'; }
   get shadowOffsetX() { return this._cp['shadowOffsetX'] ?? 0; }
   get shadowOffsetY() { return this._cp['shadowOffsetY'] ?? 0; }
-  get imageSmoothingEnabled() { return this._cp['imageSmoothingEnabled'] ?? true; }
+  get imageSmoothingEnabled() { return this._cp['imageSmoothingEnabled'] ?? false; }
   get letterSpacing() { return this._cp['letterSpacing'] ?? ''; }
 }
